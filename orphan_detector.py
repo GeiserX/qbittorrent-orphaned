@@ -2,16 +2,25 @@
 """
 orphan_detector.py – list files that are present on disk but absent from
                      any torrent managed by qBittorrent, grouped by category.
+
+Environment Variables:
+    QBIT_HOST           qBittorrent Web UI URL (default: http://qbittorrent:8080)
+    QBIT_USER           qBittorrent username (default: admin)
+    QBIT_PASS           qBittorrent password (default: password)
+    CATEGORY_FOLDERS    Category to folder mapping (e.g., Films=/mnt/films;Shows=/mnt/shows)
+    EXCLUDE_PATTERNS    Comma-separated patterns to exclude (e.g., " - 720p.mkv,sample")
+    IGNORE_SUFFIXES     Additional file suffixes to ignore (comma-separated)
 """
 
 from __future__ import annotations
 import os
+import re
 import sys
 import json
 import requests
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, Set
+from typing import Dict, List, Set
 
 ##############################################################################
 # 1. Configuration helpers
@@ -20,6 +29,10 @@ from typing import Dict, Set
 def getenv(name: str, default: str) -> str:
     """Tiny getenv wrapper that also trims quotes added by some shells."""
     return os.getenv(name, default).strip(' "\'')
+
+def parse_list(raw: str) -> List[str]:
+    """Parse comma-separated list from env var."""
+    return [p.strip() for p in raw.split(",") if p.strip()]
 
 QBIT_HOST = getenv("QBIT_HOST", "http://qbittorrent:8080").rstrip("/")
 QBIT_USER = getenv("QBIT_USER", "admin")
@@ -47,7 +60,14 @@ CATEGORY_MAP = parse_category_map(getenv(
     "Shows=X:\\Series"
 ))
 
-IGNORE_SUFFIXES = {".nfo", ".jpg", ".jpeg", ".png", ".svg", ".bin"}
+# File suffixes to always ignore (metadata, images, etc.)
+DEFAULT_IGNORE_SUFFIXES = {".nfo", ".jpg", ".jpeg", ".png", ".svg", ".bin", ".txt", ".srt", ".sub", ".idx"}
+extra_suffixes = parse_list(getenv("IGNORE_SUFFIXES", ""))
+IGNORE_SUFFIXES = DEFAULT_IGNORE_SUFFIXES | {s if s.startswith('.') else f'.{s}' for s in extra_suffixes}
+
+# Patterns to exclude from orphan detection (e.g., transcoded versions)
+# Patterns are matched case-insensitively against the full relative path
+EXCLUDE_PATTERNS = parse_list(getenv("EXCLUDE_PATTERNS", ""))
 
 ##############################################################################
 # 2. Connect to qBittorrent and fetch torrent file lists
@@ -105,10 +125,18 @@ def fetch_torrent_files(qbit: Qbit) -> Dict[str, Set[str]]:
 # 3. Walk disk and detect orphaned files
 ##############################################################################
 
+def should_exclude(path_str: str) -> bool:
+    """Check if a path should be excluded based on EXCLUDE_PATTERNS."""
+    path_lower = path_str.lower()
+    for pattern in EXCLUDE_PATTERNS:
+        if pattern.lower() in path_lower:
+            return True
+    return False
+
 def on_disk(category: str, root: Path) -> Set[Path]:
     """
     Return every file under `root`, relative to `root`, excluding unwanted
-    extensions.
+    extensions and patterns.
     """
     files: Set[Path] = set()
     if not root.exists():
@@ -116,8 +144,18 @@ def on_disk(category: str, root: Path) -> Set[Path]:
         return files
 
     for path in root.rglob("*"):
-        if path.is_file() and path.suffix.lower() not in IGNORE_SUFFIXES:
-            files.add(path.relative_to(root))
+        if not path.is_file():
+            continue
+        if path.suffix.lower() in IGNORE_SUFFIXES:
+            continue
+        # Skip macOS resource fork files
+        if path.name.startswith("._"):
+            continue
+        # Check exclude patterns
+        rel_path = str(path.relative_to(root))
+        if should_exclude(rel_path):
+            continue
+        files.add(path.relative_to(root))
     return files
 
 def detect_orphans(cat_files: Dict[str, Set[str]]) -> Dict[str, list[Path]]:

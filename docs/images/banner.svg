@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 200" width="900" height="200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2962FF"/>
+      <stop offset="100%" stop-color="#0D1B2A"/>
+    </linearGradient>
+    <linearGradient id="iconGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#B0C4DE" stop-opacity="0.85"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="200" rx="12" fill="url(#bg)"/>
+
+  <!-- Subtle grid pattern -->
+  <g opacity="0.04" stroke="#FFFFFF" stroke-width="0.5">
+    <line x1="0" y1="40" x2="900" y2="40"/>
+    <line x1="0" y1="80" x2="900" y2="80"/>
+    <line x1="0" y1="120" x2="900" y2="120"/>
+    <line x1="0" y1="160" x2="900" y2="160"/>
+    <line x1="100" y1="0" x2="100" y2="200"/>
+    <line x1="200" y1="0" x2="200" y2="200"/>
+    <line x1="300" y1="0" x2="300" y2="200"/>
+    <line x1="400" y1="0" x2="400" y2="200"/>
+    <line x1="500" y1="0" x2="500" y2="200"/>
+    <line x1="600" y1="0" x2="600" y2="200"/>
+    <line x1="700" y1="0" x2="700" y2="200"/>
+    <line x1="800" y1="0" x2="800" y2="200"/>
+  </g>
+
+  <!-- File icon (page with corner fold) -->
+  <g transform="translate(80, 55)">
+    <!-- File body -->
+    <path d="M0 8 L0 82 Q0 90 8 90 L52 90 Q60 90 60 82 L60 24 L42 8 Z"
+          fill="none" stroke="url(#iconGrad)" stroke-width="2.5" stroke-linejoin="round"/>
+    <!-- Corner fold -->
+    <path d="M42 8 L42 24 L60 24" fill="none" stroke="url(#iconGrad)" stroke-width="2.5" stroke-linejoin="round"/>
+    <!-- Lines on file -->
+    <line x1="14" y1="42" x2="46" y2="42" stroke="url(#iconGrad)" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+    <line x1="14" y1="54" x2="40" y2="54" stroke="url(#iconGrad)" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+    <line x1="14" y1="66" x2="34" y2="66" stroke="url(#iconGrad)" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  </g>
+
+  <!-- Magnifying glass overlapping the file -->
+  <g transform="translate(108, 95)">
+    <circle cx="18" cy="18" r="16" fill="none" stroke="url(#iconGrad)" stroke-width="2.8"/>
+    <line x1="30" y1="30" x2="44" y2="44" stroke="url(#iconGrad)" stroke-width="3" stroke-linecap="round"/>
+    <!-- Question mark inside lens -->
+    <text x="18" y="24" text-anchor="middle" font-family="Georgia, serif" font-size="18" font-weight="bold" fill="url(#iconGrad)" opacity="0.9">?</text>
+  </g>
+
+  <!-- Title -->
+  <text x="190" y="108" font-family="'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="42" font-weight="700" fill="#FFFFFF" letter-spacing="-0.5">
+    qbittorrent-orphaned
+  </text>
+
+  <!-- Subtitle -->
+  <text x="192" y="140" font-family="'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+        font-size="16" fill="#B0C4DE" letter-spacing="0.5">
+    Find files on disk not tracked by any qBittorrent torrent
+  </text>
+
+  <!-- Decorative dots -->
+  <circle cx="850" cy="30" r="3" fill="#FFFFFF" opacity="0.15"/>
+  <circle cx="835" cy="45" r="2" fill="#FFFFFF" opacity="0.1"/>
+  <circle cx="860" cy="55" r="2.5" fill="#FFFFFF" opacity="0.12"/>
+  <circle cx="820" cy="165" r="2" fill="#FFFFFF" opacity="0.1"/>
+  <circle cx="845" cy="175" r="3" fill="#FFFFFF" opacity="0.15"/>
+  <circle cx="865" cy="155" r="2" fill="#FFFFFF" opacity="0.08"/>
+</svg>

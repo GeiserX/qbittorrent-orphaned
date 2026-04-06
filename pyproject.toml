@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qbittorrent-orphaned"
+version = "1.0.0"
+description = "Detect files on disk not tracked by any qBittorrent torrent"
+readme = "README.md"
+license = "GPL-3.0-only"
+requires-python = ">=3.8"
+authors = [
+    { name = "GeiserX", email = "9169332+GeiserX@users.noreply.github.com" },
+]
+keywords = ["qbittorrent", "orphan", "torrent", "cleanup", "media"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Filesystems",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "requests>=2.20",
+]
+
+[project.urls]
+Homepage = "https://github.com/GeiserX/qbittorrent-orphaned"
+Repository = "https://github.com/GeiserX/qbittorrent-orphaned"
+Issues = "https://github.com/GeiserX/qbittorrent-orphaned/issues"
+
+[project.scripts]
+qbittorrent-orphaned = "orphan_detector:main"
+
+[tool.setuptools]
+py-modules = ["orphan_detector"]

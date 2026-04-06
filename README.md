@@ -1,9 +1,10 @@
 <p align="center">
-  <img src="docs/images/banner.svg" alt="qbittorrent-orphaned banner" width="900"/>
+  <img src="https://raw.githubusercontent.com/GeiserX/qbittorrent-orphaned/main/docs/images/banner.svg" alt="qbittorrent-orphaned banner" width="900"/>
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"/></a>
+  <a href="https://pypi.org/project/qbittorrent-orphaned/"><img src="https://img.shields.io/pypi/v/qbittorrent-orphaned.svg" alt="PyPI version"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="License: GPL-3.0"/></a>
   <img src="https://img.shields.io/badge/python-3.8%2B-3776AB.svg?logo=python&logoColor=white" alt="Python 3.8+"/>
   <img src="https://img.shields.io/badge/dependency-requests-green.svg" alt="requests"/>
 </p>
@@ -29,7 +30,23 @@ When you remove a torrent from qBittorrent but keep the data on disk, or when ex
 
 ## Quick Start
 
+### Install from PyPI
+
+```bash
+pip install qbittorrent-orphaned
+```
+
 ### Standalone
+
+```bash
+QBIT_HOST=http://localhost:8080 \
+QBIT_USER=admin \
+QBIT_PASS=yourpassword \
+CATEGORY_FOLDERS="Films=/mnt/media/films;Shows=/mnt/media/shows" \
+qbittorrent-orphaned
+```
+
+You can also run the script directly without installing:
 
 ```bash
 pip install requests
@@ -119,4 +136,4 @@ No orphaned files found.
 
 ## License
 
-[MIT](LICENSE)
+[GPL-3.0](LICENSE)

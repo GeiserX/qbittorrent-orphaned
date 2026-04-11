@@ -7,6 +7,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="License: GPL-3.0"/></a>
   <img src="https://img.shields.io/badge/python-3.8%2B-3776AB.svg?logo=python&logoColor=white" alt="Python 3.8+"/>
   <img src="https://img.shields.io/badge/dependency-requests-green.svg" alt="requests"/>
+  <a href="https://codecov.io/gh/GeiserX/qbittorrent-orphaned"><img src="https://img.shields.io/codecov/c/github/GeiserX/qbittorrent-orphaned.svg" alt="Coverage"/></a>
 </p>
 
 ---

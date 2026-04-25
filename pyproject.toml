@@ -42,3 +42,16 @@ qbittorrent-orphaned = "orphan_detector:main"
 
 [tool.setuptools]
 py-modules = ["orphan_detector"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "."]
+
+[tool.coverage.run]
+source = ["orphan_detector"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+exclude_lines = [
+    "if __name__",
+]

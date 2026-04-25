@@ -12,9 +12,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from orphan_detector import (
     parse_list,
     parse_category_map,
-    should_exclude,
-    on_disk,
-    detect_orphans,
     human_size,
 )
 
@@ -58,72 +55,81 @@ class TestParseCategoryMap:
 
 
 class TestShouldExclude:
-    @patch("orphan_detector.EXCLUDE_PATTERNS", ["720p", "sample"])
     def test_matches_pattern(self):
-        assert should_exclude("Movie/Movie - 720p.mkv") is True
+        import orphan_detector
+        with patch.object(orphan_detector, "EXCLUDE_PATTERNS", ["720p", "sample"]):
+            assert orphan_detector.should_exclude("Movie/Movie - 720p.mkv") is True
 
-    @patch("orphan_detector.EXCLUDE_PATTERNS", ["720p", "sample"])
     def test_case_insensitive(self):
-        assert should_exclude("Movie/SAMPLE.mkv") is True
+        import orphan_detector
+        with patch.object(orphan_detector, "EXCLUDE_PATTERNS", ["720p", "sample"]):
+            assert orphan_detector.should_exclude("Movie/SAMPLE.mkv") is True
 
-    @patch("orphan_detector.EXCLUDE_PATTERNS", ["720p", "sample"])
     def test_no_match(self):
-        assert should_exclude("Movie/Movie.1080p.mkv") is False
+        import orphan_detector
+        with patch.object(orphan_detector, "EXCLUDE_PATTERNS", ["720p", "sample"]):
+            assert orphan_detector.should_exclude("Movie/Movie.1080p.mkv") is False
 
-    @patch("orphan_detector.EXCLUDE_PATTERNS", [])
     def test_empty_patterns(self):
-        assert should_exclude("anything.mkv") is False
+        import orphan_detector
+        with patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+            assert orphan_detector.should_exclude("anything.mkv") is False
 
 
 class TestOnDisk:
     def test_finds_files(self):
+        import orphan_detector
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             (root / "movie.mkv").touch()
             (root / "subdir").mkdir()
             (root / "subdir" / "episode.mkv").touch()
 
-            with patch("orphan_detector.IGNORE_SUFFIXES", {".nfo", ".jpg"}):
-                with patch("orphan_detector.EXCLUDE_PATTERNS", []):
-                    files = on_disk("TestCat", root)
+            with patch.object(orphan_detector, "IGNORE_SUFFIXES", {".nfo", ".jpg"}), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                files = orphan_detector.on_disk("TestCat", root)
             assert Path("movie.mkv") in files
             assert Path("subdir/episode.mkv") in files
 
     def test_ignores_suffixes(self):
+        import orphan_detector
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             (root / "movie.mkv").touch()
             (root / "cover.jpg").touch()
             (root / "info.nfo").touch()
 
-            with patch("orphan_detector.IGNORE_SUFFIXES", {".nfo", ".jpg"}):
-                with patch("orphan_detector.EXCLUDE_PATTERNS", []):
-                    files = on_disk("TestCat", root)
+            with patch.object(orphan_detector, "IGNORE_SUFFIXES", {".nfo", ".jpg"}), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                files = orphan_detector.on_disk("TestCat", root)
             assert Path("movie.mkv") in files
             assert Path("cover.jpg") not in files
             assert Path("info.nfo") not in files
 
     def test_skips_macos_resource_forks(self):
+        import orphan_detector
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             (root / "._hidden").touch()
             (root / "real.mkv").touch()
 
-            with patch("orphan_detector.IGNORE_SUFFIXES", set()):
-                with patch("orphan_detector.EXCLUDE_PATTERNS", []):
-                    files = on_disk("TestCat", root)
+            with patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                files = orphan_detector.on_disk("TestCat", root)
             assert Path("real.mkv") in files
             assert Path("._hidden") not in files
 
     def test_nonexistent_folder(self):
-        with patch("orphan_detector.IGNORE_SUFFIXES", set()):
-            with patch("orphan_detector.EXCLUDE_PATTERNS", []):
-                files = on_disk("TestCat", Path("/nonexistent/path"))
+        import orphan_detector
+        with patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+             patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+            files = orphan_detector.on_disk("TestCat", Path("/nonexistent/path"))
         assert files == set()
 
 
 class TestDetectOrphans:
     def test_detects_orphan(self):
+        import orphan_detector
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             (root / "tracked.mkv").touch()
@@ -131,10 +137,10 @@ class TestDetectOrphans:
 
             torrent_files = {"TestCat": {"tracked.mkv"}}
 
-            with patch("orphan_detector.CATEGORY_MAP", {"TestCat": root}):
-                with patch("orphan_detector.IGNORE_SUFFIXES", set()):
-                    with patch("orphan_detector.EXCLUDE_PATTERNS", []):
-                        orphans = detect_orphans(torrent_files)
+            with patch.object(orphan_detector, "CATEGORY_MAP", {"TestCat": root}), \
+                 patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                orphans = orphan_detector.detect_orphans(torrent_files)
 
             assert "TestCat" in orphans
             orphan_names = [p.name for p in orphans["TestCat"]]
@@ -142,16 +148,17 @@ class TestDetectOrphans:
             assert "tracked.mkv" not in orphan_names
 
     def test_no_orphans(self):
+        import orphan_detector
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             (root / "tracked.mkv").touch()
 
             torrent_files = {"TestCat": {"tracked.mkv"}}
 
-            with patch("orphan_detector.CATEGORY_MAP", {"TestCat": root}):
-                with patch("orphan_detector.IGNORE_SUFFIXES", set()):
-                    with patch("orphan_detector.EXCLUDE_PATTERNS", []):
-                        orphans = detect_orphans(torrent_files)
+            with patch.object(orphan_detector, "CATEGORY_MAP", {"TestCat": root}), \
+                 patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                orphans = orphan_detector.detect_orphans(torrent_files)
 
             assert orphans == {} or all(len(v) == 0 for v in orphans.values())
 

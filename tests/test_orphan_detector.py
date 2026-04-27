@@ -425,10 +425,10 @@ class TestMain:
                  patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
                 # Delete the file after on_disk found it but before main prints it
                 original_stat = Path.stat
-                def fake_stat(self):
+                def fake_stat(self, **kwargs):
                     if "vanishing" in str(self):
                         raise FileNotFoundError("gone")
-                    return original_stat(self)
+                    return original_stat(self, **kwargs)
 
                 with patch.object(Path, "stat", fake_stat):
                     orphan_detector.main()

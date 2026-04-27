@@ -401,38 +401,25 @@ class TestMain:
         """Cover lines 207-209: file disappears during run."""
         import orphan_detector
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            root = Path(tmpdir)
-            orphan_file = root / "vanishing.mkv"
-            orphan_file.touch()
+        mock_session = MagicMock()
+        mock_login_resp = MagicMock()
+        mock_login_resp.text = "Ok."
+        mock_session.post.return_value = mock_login_resp
 
-            mock_session = MagicMock()
-            mock_login_resp = MagicMock()
-            mock_login_resp.text = "Ok."
-            mock_session.post.return_value = mock_login_resp
+        mock_get_resp = MagicMock()
+        mock_get_resp.json.return_value = []
+        mock_get_resp.raise_for_status = MagicMock()
+        mock_session.get.return_value = mock_get_resp
 
-            mock_get_resp = MagicMock()
-            mock_get_resp.json.return_value = []
-            mock_get_resp.raise_for_status = MagicMock()
-            mock_session.get.return_value = mock_get_resp
+        fake_orphans = {"TestCat": [Path("/nonexistent/vanishing.mkv")]}
 
-            with patch("orphan_detector.requests.Session", return_value=mock_session), \
-                 patch.object(orphan_detector, "QBIT_HOST", "http://localhost:8080"), \
-                 patch.object(orphan_detector, "QBIT_USER", "admin"), \
-                 patch.object(orphan_detector, "QBIT_PASS", "pass"), \
-                 patch.object(orphan_detector, "CATEGORY_MAP", {"TestCat": root}), \
-                 patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
-                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
-                # Delete the file after on_disk found it but before main prints it
-                original_stat = Path.stat
-                def fake_stat(self, **kwargs):
-                    if "vanishing" in str(self):
-                        raise FileNotFoundError("gone")
-                    return original_stat(self, **kwargs)
+        with patch("orphan_detector.requests.Session", return_value=mock_session), \
+             patch.object(orphan_detector, "QBIT_HOST", "http://localhost:8080"), \
+             patch.object(orphan_detector, "QBIT_USER", "admin"), \
+             patch.object(orphan_detector, "QBIT_PASS", "pass"), \
+             patch("orphan_detector.detect_orphans", return_value=fake_orphans):
+            orphan_detector.main()
 
-                with patch.object(Path, "stat", fake_stat):
-                    orphan_detector.main()
-
-            captured = capsys.readouterr()
-            assert "vanishing.mkv" in captured.out
-            assert "missing?" in captured.out
+        captured = capsys.readouterr()
+        assert "vanishing.mkv" in captured.out
+        assert "missing?" in captured.out

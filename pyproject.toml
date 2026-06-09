@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qbittorrent-orphaned"
-version = "1.0.0"
+version = "1.1.1"
 description = "Detect files on disk not tracked by any qBittorrent torrent"
 readme = "README.md"
 license = "GPL-3.0-only"
@@ -44,7 +44,7 @@ qbittorrent-orphaned = "orphan_detector:main"
 py-modules = ["orphan_detector"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "."]
+testpaths = ["tests"]
 
 [tool.coverage.run]
 source = ["orphan_detector"]

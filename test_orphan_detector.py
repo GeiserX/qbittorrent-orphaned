@@ -40,6 +40,21 @@ def _import_fresh(env_overrides: dict | None = None):
 
 
 # ---------------------------------------------------------------------------
+# Helper: generate example cookies dict with qBit SID cookie
+# ---------------------------------------------------------------------------
+
+def _gen_cookies_with_sid(qbit_ver_gte_5_2):
+    if qbit_ver_gte_5_2:
+        random_port = 37951
+        sid_cookie_name = f"QBT_SID_{random_port}"
+    else:
+        sid_cookie_name = "SID"
+    # qBit SID values are 24 random bytes encoded in Base64
+    random_sid = "uB5hcvAzrfbQy3hkswLkzg/kVtvSWF+5"
+    return {sid_cookie_name: random_sid}
+
+
+# ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
@@ -190,12 +205,12 @@ class TestModuleGlobals:
 # ===========================================================================
 
 class TestQbit:
-    def test_login_success(self):
+    def _test_login_success(self, qbit_ver_gte_5_2):
         mod = _import_fresh()
         with patch("orphan_detector.requests.Session") as MockSession:
             mock_session = MockSession.return_value
             mock_resp = MagicMock()
-            mock_resp.text = "Ok."
+            mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=True)
             mock_session.post.return_value = mock_resp
 
             qbit = mod.Qbit("http://host:8080", "user", "pass")
@@ -204,6 +219,12 @@ class TestQbit:
                 data={"username": "user", "password": "pass"},
                 timeout=10,
             )
+
+    def test_login_success_qbit_ver_gte_5_2(self):
+        return self._test_login_success(qbit_ver_gte_5_2=True)
+
+    def test_login_success_qbit_ver_lt_5_2(self):
+        return self._test_login_success(qbit_ver_gte_5_2=False)
 
     def test_login_failure_exits(self):
         mod = _import_fresh()
@@ -220,7 +241,8 @@ class TestQbit:
         mod = _import_fresh()
         with patch("orphan_detector.requests.Session") as MockSession:
             mock_session = MockSession.return_value
-            mock_login = MagicMock(text="Ok.")
+            mock_login = MagicMock()
+            mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=True)
             mock_torrents = MagicMock()
             mock_torrents.json.return_value = [{"hash": "abc", "category": "Movies"}]
             mock_session.post.return_value = mock_login
@@ -234,7 +256,8 @@ class TestQbit:
         mod = _import_fresh()
         with patch("orphan_detector.requests.Session") as MockSession:
             mock_session = MockSession.return_value
-            mock_login = MagicMock(text="Ok.")
+            mock_login = MagicMock()
+            mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=True)
             mock_files = MagicMock()
             mock_files.json.return_value = [{"name": "movie.mkv"}]
             mock_session.post.return_value = mock_login

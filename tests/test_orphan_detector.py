@@ -235,7 +235,7 @@ class TestQbit:
         import orphan_detector
         mock_session = MagicMock()
         mock_response = MagicMock()
-        mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=True)
+        mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=qbit_ver_gte_5_2)
         mock_session.post.return_value = mock_response
 
         with patch("orphan_detector.requests.Session", return_value=mock_session):
@@ -266,6 +266,25 @@ class TestQbit:
             with pytest.raises(SystemExit) as exc_info:
                 orphan_detector.Qbit("http://localhost:8080", "admin", "wrong")
         assert "Login to qBittorrent failed" in str(exc_info.value)
+
+    def test_login_failure_non_sid_cookie_exits(self):
+        """A cookie present but not SID/QBT_SID still fails, with HTTP status + body in the message."""
+        import orphan_detector
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_response.status_code = 403
+        mock_response.text = "Forbidden"
+        # Jar has a cookie, but none is the qBittorrent session cookie
+        mock_session.cookies = {"cf_clearance": "abc"}
+        mock_session.post.return_value = mock_response
+
+        with patch("orphan_detector.requests.Session", return_value=mock_session):
+            with pytest.raises(SystemExit) as exc_info:
+                orphan_detector.Qbit("http://localhost:8080", "admin", "pass")
+        message = str(exc_info.value)
+        assert "Login to qBittorrent failed" in message
+        assert "HTTP 403" in message
+        assert "Forbidden" in message
 
     def test_torrents(self):
         """Cover lines 99-103."""

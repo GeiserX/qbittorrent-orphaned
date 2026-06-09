@@ -94,7 +94,7 @@ class Qbit:
         for k in self.session.cookies.keys():
             if k == "SID" or k.startswith("QBT_SID"):
                 return
-        sys.exit("❌  Login to qBittorrent failed.")
+        sys.exit(f"❌  Login to qBittorrent failed (HTTP {r.status_code}): {r.text!r}")
 
     def torrents(self) -> list[dict]:
         """Return list of torrents with at least hash, category."""
@@ -190,7 +190,7 @@ def detect_orphans(cat_files: Dict[str, Set[str]]) -> Dict[str, list[Path]]:
 ##############################################################################
 
 def human_size(num: int) -> str:
-    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):  # pragma: no branch
         if num < 1024 or unit == "TiB":
             return f"{num:,.0f} {unit}"
         num /= 1024

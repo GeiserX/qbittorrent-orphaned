@@ -87,8 +87,14 @@ class Qbit:
             data={"username": user, "password": password},
             timeout=10
         )
-        if r.text != "Ok.":
-            sys.exit(f"❌  Login to qBittorrent failed: {r.text}")
+        # On success,
+        # qBittorrent <  5.2 sets cookie "SID"
+        # qBittorrent >= 5.2 sets cookie "QBT_SID_<WebUI port>"
+        # https://github.com/qbittorrent/qBittorrent/issues/24190
+        for k in self.session.cookies.keys():
+            if k == "SID" or k.startswith("QBT_SID"):
+                return
+        sys.exit("❌  Login to qBittorrent failed.")
 
     def torrents(self) -> list[dict]:
         """Return list of torrents with at least hash, category."""

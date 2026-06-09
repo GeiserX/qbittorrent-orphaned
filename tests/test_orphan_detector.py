@@ -218,13 +218,24 @@ class TestHumanSize:
         assert "TiB" in result
 
 
+def _gen_cookies_with_sid(qbit_ver_gte_5_2):
+    if qbit_ver_gte_5_2:
+        random_port = 37951
+        sid_cookie_name = f"QBT_SID_{random_port}"
+    else:
+        sid_cookie_name = "SID"
+    # qBit SID values are 24 random bytes encoded in Base64
+    random_sid = "uB5hcvAzrfbQy3hkswLkzg/kVtvSWF+5"
+    return {sid_cookie_name: random_sid}
+
+
 class TestQbit:
-    def test_init_and_login_success(self):
-        """Cover lines 79-82, 84-88."""
+    def _test_init_and_login_success(self, qbit_ver_gte_5_2):
+        """Cover lines 79-82, 84-96."""
         import orphan_detector
         mock_session = MagicMock()
         mock_response = MagicMock()
-        mock_response.text = "Ok."
+        mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=True)
         mock_session.post.return_value = mock_response
 
         with patch("orphan_detector.requests.Session", return_value=mock_session):
@@ -237,12 +248,18 @@ class TestQbit:
             timeout=10
         )
 
+    def test_init_and_login_success_qbit_ver_gte_5_2(self):
+        return self._test_init_and_login_success(qbit_ver_gte_5_2=True)
+
+    def test_init_and_login_success_qbit_ver_lt_5_2(self):
+        return self._test_init_and_login_success(qbit_ver_gte_5_2=False)
+
     def test_login_failure_exits(self):
-        """Cover lines 90-91: login fails when response != 'Ok.'"""
+        """Cover lines 94-97: login fails when no SID cookie set"""
         import orphan_detector
         mock_session = MagicMock()
         mock_response = MagicMock()
-        mock_response.text = "Fails."
+        mock_session.cookies = {}
         mock_session.post.return_value = mock_response
 
         with patch("orphan_detector.requests.Session", return_value=mock_session):
@@ -251,11 +268,11 @@ class TestQbit:
         assert "Login to qBittorrent failed" in str(exc_info.value)
 
     def test_torrents(self):
-        """Cover lines 93-97."""
+        """Cover lines 99-103."""
         import orphan_detector
         mock_session = MagicMock()
         mock_login_resp = MagicMock()
-        mock_login_resp.text = "Ok."
+        mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=True)
         mock_session.post.return_value = mock_login_resp
 
         torrent_data = [{"hash": "abc123", "category": "Films"}]
@@ -274,11 +291,11 @@ class TestQbit:
         )
 
     def test_files_for(self):
-        """Cover lines 99-106."""
+        """Cover lines 105-112."""
         import orphan_detector
         mock_session = MagicMock()
         mock_login_resp = MagicMock()
-        mock_login_resp.text = "Ok."
+        mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=True)
         mock_session.post.return_value = mock_login_resp
 
         file_data = [{"name": "Movie/movie.mkv"}]
@@ -301,11 +318,11 @@ class TestQbit:
 
 class TestFetchTorrentFiles:
     def test_basic_fetch(self):
-        """Cover lines 114-122."""
+        """Cover lines 114-128."""
         import orphan_detector
         mock_session = MagicMock()
         mock_login_resp = MagicMock()
-        mock_login_resp.text = "Ok."
+        mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=True)
         mock_session.post.return_value = mock_login_resp
 
         torrents = [
@@ -342,11 +359,11 @@ class TestFetchTorrentFiles:
 
 class TestMain:
     def test_main_no_orphans(self, capsys):
-        """Cover lines 192-199: main with no orphans."""
+        """Cover lines 198-205: main with no orphans."""
         import orphan_detector
         mock_session = MagicMock()
         mock_login_resp = MagicMock()
-        mock_login_resp.text = "Ok."
+        mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=True)
         mock_session.post.return_value = mock_login_resp
 
         mock_get_resp = MagicMock()
@@ -365,7 +382,7 @@ class TestMain:
         assert "No orphaned files found" in captured.out
 
     def test_main_with_orphans(self, capsys):
-        """Cover lines 201-209: main with orphans found."""
+        """Cover lines 207-215: main with orphans found."""
         import orphan_detector
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -375,7 +392,7 @@ class TestMain:
 
             mock_session = MagicMock()
             mock_login_resp = MagicMock()
-            mock_login_resp.text = "Ok."
+            mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=True)
             mock_session.post.return_value = mock_login_resp
 
             mock_get_resp = MagicMock()
@@ -398,12 +415,12 @@ class TestMain:
             assert "KiB" in captured.out
 
     def test_main_orphan_file_not_found(self, capsys):
-        """Cover lines 207-209: file disappears during run."""
+        """Cover lines 213-215: file disappears during run."""
         import orphan_detector
 
         mock_session = MagicMock()
+        mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=True)
         mock_login_resp = MagicMock()
-        mock_login_resp.text = "Ok."
         mock_session.post.return_value = mock_login_resp
 
         mock_get_resp = MagicMock()

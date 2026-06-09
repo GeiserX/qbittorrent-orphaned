@@ -3,6 +3,7 @@
 import pytest
 import tempfile
 import os
+import importlib
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -14,6 +15,108 @@ from orphan_detector import (
     parse_category_map,
     human_size,
 )
+
+
+# ---------------------------------------------------------------------------
+# Helper: import/reimport the module with controlled env vars so module-level
+# globals (QBIT_HOST, CATEGORY_MAP, ...) pick up the patched env.
+# ---------------------------------------------------------------------------
+
+def _import_fresh(env_overrides: dict | None = None):
+    env = {
+        "QBIT_HOST": "http://localhost:9090",
+        "QBIT_USER": "testuser",
+        "QBIT_PASS": "testpass",
+        "CATEGORY_FOLDERS": "Movies=/tmp/movies;Shows=/tmp/shows",
+        "EXCLUDE_PATTERNS": "",
+        "IGNORE_SUFFIXES": "",
+    }
+    if env_overrides:
+        env.update(env_overrides)
+
+    with patch.dict(os.environ, env, clear=False):
+        if "orphan_detector" in sys.modules:
+            mod = importlib.reload(sys.modules["orphan_detector"])
+        else:
+            mod = importlib.import_module("orphan_detector")
+    return mod
+
+
+@pytest.fixture
+def reimported():
+    """Reload orphan_detector after a globals/env test so later tests get a
+    clean module bound to the process environment."""
+    yield
+    _import_fresh()
+
+
+# ===========================================================================
+# getenv (quote/space trimming)
+# ===========================================================================
+
+class TestGetenv:
+    def test_returns_default_when_var_unset(self, reimported):
+        mod = _import_fresh()
+        os.environ.pop("__TEST_UNSET__", None)
+        assert mod.getenv("__TEST_UNSET__", "fallback") == "fallback"
+
+    def test_returns_env_value(self, reimported):
+        mod = _import_fresh()
+        with patch.dict(os.environ, {"__TEST_SET__": "hello"}, clear=False):
+            assert mod.getenv("__TEST_SET__", "nope") == "hello"
+
+    def test_strips_surrounding_quotes(self, reimported):
+        mod = _import_fresh()
+        with patch.dict(os.environ, {"__TEST_Q__": '"quoted"'}, clear=False):
+            assert mod.getenv("__TEST_Q__", "") == "quoted"
+
+    def test_strips_single_quotes(self, reimported):
+        mod = _import_fresh()
+        with patch.dict(os.environ, {"__TEST_SQ__": "'single'"}, clear=False):
+            assert mod.getenv("__TEST_SQ__", "") == "single"
+
+    def test_strips_spaces(self, reimported):
+        mod = _import_fresh()
+        with patch.dict(os.environ, {"__TEST_SP__": "  spaced  "}, clear=False):
+            assert mod.getenv("__TEST_SP__", "") == "spaced"
+
+
+# ===========================================================================
+# Module-level globals derived from env
+# ===========================================================================
+
+class TestModuleGlobals:
+    def test_qbit_host_default(self, reimported):
+        mod = _import_fresh({"QBIT_HOST": "http://myhost:1234"})
+        assert mod.QBIT_HOST == "http://myhost:1234"
+
+    def test_qbit_host_trailing_slash_stripped(self, reimported):
+        mod = _import_fresh({"QBIT_HOST": "http://myhost:1234/"})
+        assert mod.QBIT_HOST == "http://myhost:1234"
+
+    def test_category_map_loaded(self, reimported):
+        mod = _import_fresh({"CATEGORY_FOLDERS": "A=/a;B=/b"})
+        assert "A" in mod.CATEGORY_MAP
+        assert "B" in mod.CATEGORY_MAP
+
+    def test_ignore_suffixes_includes_defaults(self, reimported):
+        mod = _import_fresh()
+        assert ".nfo" in mod.IGNORE_SUFFIXES
+        assert ".jpg" in mod.IGNORE_SUFFIXES
+
+    def test_ignore_suffixes_extra_with_dot(self, reimported):
+        mod = _import_fresh({"IGNORE_SUFFIXES": ".mkv,.avi"})
+        assert ".mkv" in mod.IGNORE_SUFFIXES
+        assert ".avi" in mod.IGNORE_SUFFIXES
+
+    def test_ignore_suffixes_extra_without_dot(self, reimported):
+        mod = _import_fresh({"IGNORE_SUFFIXES": "mkv,avi"})
+        assert ".mkv" in mod.IGNORE_SUFFIXES
+        assert ".avi" in mod.IGNORE_SUFFIXES
+
+    def test_exclude_patterns_loaded(self, reimported):
+        mod = _import_fresh({"EXCLUDE_PATTERNS": "720p,sample"})
+        assert mod.EXCLUDE_PATTERNS == ["720p", "sample"]
 
 
 class TestParseList:

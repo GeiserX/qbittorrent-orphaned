@@ -210,7 +210,7 @@ class TestQbit:
         with patch("orphan_detector.requests.Session") as MockSession:
             mock_session = MockSession.return_value
             mock_resp = MagicMock()
-            mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=True)
+            mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=qbit_ver_gte_5_2)
             mock_session.post.return_value = mock_resp
 
             qbit = mod.Qbit("http://host:8080", "user", "pass")

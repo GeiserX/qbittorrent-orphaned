@@ -26,6 +26,21 @@ from typing import Dict, List, Set
 # 1. Configuration helpers
 ##############################################################################
 
+def force_utf8_output() -> None:
+    """
+    Print UTF-8 regardless of the console's default encoding.
+
+    Torrent names routinely contain characters outside the Windows ANSI
+    code pages (cp1252 has no U+2606 WHITE STAR, for example), and the
+    status glyphs below are non-ASCII too.  Without this, printing such a
+    name raises UnicodeEncodeError and kills the run mid-listing.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        # pytest's capture fixtures replace these with objects that have no
+        # reconfigure(); nothing to do there, they already accept UTF-8.
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
 def getenv(name: str, default: str) -> str:
     """Tiny getenv wrapper that also trims quotes added by some shells."""
     return os.getenv(name, default).strip(' "\'')
@@ -196,6 +211,7 @@ def human_size(num: int) -> str:
         num /= 1024
 
 def main() -> None:
+    force_utf8_output()
     qbit = Qbit(QBIT_HOST, QBIT_USER, QBIT_PASS)
     cat_files = fetch_torrent_files(qbit)
     orphans = detect_orphans(cat_files)

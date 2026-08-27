@@ -99,7 +99,7 @@ All configuration is done through environment variables.
 | `QBIT_USER` | `admin` | Username for Web UI authentication |
 | `QBIT_PASS` | `password` | Password for Web UI authentication |
 | `CATEGORY_FOLDERS` | `Films=W:\Films;Shows=X:\Series` | Semicolon-separated `Category=Path` pairs. Categories must match those configured in qBittorrent. |
-| `EXCLUDE_PATTERNS` | *(empty)* | Comma-separated substrings. Any file whose relative path contains one of these patterns (case-insensitive) is skipped. |
+| `EXCLUDE_PATTERNS` | *(empty)* | Comma-separated substrings. Any file whose relative path contains one of these patterns (case-insensitive) is skipped. A comma inside a pattern is escaped as `\,` — see below. |
 | `IGNORE_SUFFIXES` | *(empty)* | Comma-separated file extensions to ignore in addition to the built-in list. Leading dots are optional (e.g., `ass,ssa` or `.ass,.ssa`). |
 
 ### Category Folders Format
@@ -109,6 +109,16 @@ CATEGORY_NAME=ABSOLUTE_PATH;CATEGORY_NAME2=ABSOLUTE_PATH2
 ```
 
 Each category name must match exactly what is configured in qBittorrent. Torrents with no category are grouped under the key `__UNCATEGORIZED__`.
+
+### Patterns Containing Commas
+
+`EXCLUDE_PATTERNS` is comma-separated, so a pattern that itself contains a comma is escaped with a backslash:
+
+```
+EXCLUDE_PATTERNS=Books\, Comics & Manga,sample
+```
+
+That is two patterns — `Books, Comics & Manga` and `sample`. Without the escape it would be three, and the stray `Books` would silently skip every file whose path contains "book". Values with no `\,` in them are unaffected.
 
 ## Example Output
 

@@ -577,7 +577,7 @@ class TestForceUtf8Output:
 
         for stream in (fake_out, fake_err):
             stream.reconfigure.assert_called_once_with(
-                encoding="utf-8", errors="replace"
+                encoding="utf-8", errors="surrogateescape"
             )
 
     def test_tolerates_streams_without_reconfigure(self):
@@ -616,3 +616,41 @@ class TestForceUtf8Output:
                 orphan_detector.main()
 
         assert "\u2606" in capsys.readouterr().out
+
+    def test_non_utf8_filename_round_trips_byte_exactly(self):
+        """
+        A filename that is not valid UTF-8 must be printed as its original
+        bytes.  errors="replace" turns it into "?", which collapses two
+        different files into one identical line and glob-matches a file we
+        never flagged -- on output the user is invited to paste into rm.
+        """
+        import orphan_detector
+
+        raw = b"Le\xe9on.1994.mkv"                 # latin-1, not valid UTF-8
+        name = os.fsdecode(raw)                     # -> lone surrogates
+
+        buf = io.BytesIO()
+        stream = io.TextIOWrapper(buf, encoding="ascii", newline="")
+        with patch.object(orphan_detector.sys, "stdout", stream), \
+             patch.object(orphan_detector.sys, "stderr", stream):
+            orphan_detector.force_utf8_output()
+            print(name, file=stream)
+            stream.flush()
+
+        assert buf.getvalue() == raw + b"\n"
+
+    def test_distinct_non_utf8_names_stay_distinct(self):
+        """Two different unreadable names must not print as the same line."""
+        import orphan_detector
+
+        def rendered(raw):
+            buf = io.BytesIO()
+            stream = io.TextIOWrapper(buf, encoding="ascii", newline="")
+            with patch.object(orphan_detector.sys, "stdout", stream), \
+                 patch.object(orphan_detector.sys, "stderr", stream):
+                orphan_detector.force_utf8_output()
+                print(os.fsdecode(raw), file=stream)
+                stream.flush()
+            return buf.getvalue()
+
+        assert rendered(b"Le\xe9on.mkv") != rendered(b"Le\xf3on.mkv")

@@ -34,12 +34,20 @@ def force_utf8_output() -> None:
     code pages (cp1252 has no U+2606 WHITE STAR, for example), and the
     status glyphs below are non-ASCII too.  Without this, printing such a
     name raises UnicodeEncodeError and kills the run mid-listing.
+
+    errors="surrogateescape", not "replace": we print paths the user is
+    invited to delete, so every byte has to survive the round-trip.  A
+    filename that is not valid UTF-8 reaches us as surrogates from
+    os.fsdecode, and "replace" would turn each one into "?" -- which
+    silently collapses two different files into one identical line and,
+    because "?" is a shell glob, makes the printed path match a file we
+    never flagged.  "surrogateescape" writes the original bytes back out.
     """
     for stream in (sys.stdout, sys.stderr):
         # pytest's capture fixtures replace these with objects that have no
         # reconfigure(); nothing to do there, they already accept UTF-8.
         if hasattr(stream, "reconfigure"):
-            stream.reconfigure(encoding="utf-8", errors="replace")
+            stream.reconfigure(encoding="utf-8", errors="surrogateescape")
 
 def getenv(name: str, default: str) -> str:
     """Tiny getenv wrapper that also trims quotes added by some shells."""
@@ -68,6 +76,10 @@ def parse_category_map(raw: str) -> Dict[str, Path]:
             continue
         mapping[cat.strip()] = Path(folder.strip())
     return mapping
+
+# Before any module-scope print(): the malformed-entry warning below is
+# non-ASCII and would otherwise crash on a legacy stdout before main() runs.
+force_utf8_output()
 
 CATEGORY_MAP = parse_category_map(getenv(
     "CATEGORY_FOLDERS",
@@ -211,7 +223,7 @@ def human_size(num: int) -> str:
         num /= 1024
 
 def main() -> None:
-    force_utf8_output()
+    force_utf8_output()  # re-apply: streams may have been swapped since import
     qbit = Qbit(QBIT_HOST, QBIT_USER, QBIT_PASS)
     cat_files = fetch_torrent_files(qbit)
     orphans = detect_orphans(cat_files)

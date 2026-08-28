@@ -565,6 +565,96 @@ class TestMain:
         assert "missing?" in captured.out
 
 
+class TestNestedCategoryFolders:
+    """A category folder that contains another category's folder."""
+
+    def _tree(self, tmpdir):
+        """
+        root/                      -> __UNCATEGORIZED__
+            loose.mkv              (genuine orphan)
+            Books, Comics & Manga/ -> its own category
+                Series X/v01.cbz   (tracked by a torrent in that category)
+        """
+        root = Path(tmpdir)
+        inner = root / "Books, Comics & Manga"
+        (inner / "Series X").mkdir(parents=True)
+        (inner / "Series X" / "v01.cbz").touch()
+        (root / "loose.mkv").touch()
+        return root, inner
+
+    def test_nested_files_not_orphaned_by_outer_category(self):
+        import orphan_detector
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root, inner = self._tree(tmpdir)
+            cat_map = {"__UNCATEGORIZED__": root, "Books, Comics & Manga": inner}
+            torrent_files = {"Books, Comics & Manga": {"series x/v01.cbz"}}
+
+            with patch.object(orphan_detector, "CATEGORY_MAP", cat_map), \
+                 patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                orphans = orphan_detector.detect_orphans(torrent_files)
+
+            # The outer scan sees only its own loose file.
+            assert [p.name for p in orphans["__UNCATEGORIZED__"]] == ["loose.mkv"]
+            # And the nested file is not orphaned anywhere.
+            assert "Books, Comics & Manga" not in orphans
+
+    def test_nested_orphan_still_found_in_its_own_category(self):
+        import orphan_detector
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root, inner = self._tree(tmpdir)
+            cat_map = {"__UNCATEGORIZED__": root, "Books, Comics & Manga": inner}
+
+            with patch.object(orphan_detector, "CATEGORY_MAP", cat_map), \
+                 patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                orphans = orphan_detector.detect_orphans({})
+
+            # Untracked now, so it is a real orphan — reported once, under
+            # the category that owns the folder.
+            assert [p.name for p in orphans["Books, Comics & Manga"]] == ["v01.cbz"]
+            assert [p.name for p in orphans["__UNCATEGORIZED__"]] == ["loose.mkv"]
+
+    def test_overlap_is_reported(self, capsys):
+        import orphan_detector
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root, inner = self._tree(tmpdir)
+            cat_map = {"__UNCATEGORIZED__": root, "Books, Comics & Manga": inner}
+
+            with patch.object(orphan_detector, "CATEGORY_MAP", cat_map), \
+                 patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                orphan_detector.detect_orphans({})
+
+            captured = capsys.readouterr()
+            # informational, so it must not land in a redirected report
+            assert "contains another category folder" in captured.err
+            assert "__UNCATEGORIZED__" in captured.err
+            assert "contains another category folder" not in captured.out
+
+    def test_identical_folders_are_not_nested(self):
+        """Two categories deliberately pointed at the same folder still work."""
+        import orphan_detector
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "shared.mkv").touch()
+            cat_map = {"A": root, "B": root}
+
+            with patch.object(orphan_detector, "CATEGORY_MAP", cat_map), \
+                 patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                assert orphan_detector.nested_folders("A", root) == []
+                orphans = orphan_detector.detect_orphans({"A": {"shared.mkv"}})
+
+            assert "A" not in orphans
+            assert [p.name for p in orphans["B"]] == ["shared.mkv"]
+
+    def test_no_nesting_returns_empty(self):
+        import orphan_detector
+        cat_map = {"Films": Path("/media/films"), "Shows": Path("/media/shows")}
+        with patch.object(orphan_detector, "CATEGORY_MAP", cat_map):
+            assert orphan_detector.nested_folders("Films", Path("/media/films")) == []
+
 class TestForceUtf8Output:
     def test_reconfigures_streams_to_utf8(self):
         """Streams that support reconfigure() are switched to UTF-8."""

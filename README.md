@@ -110,6 +110,14 @@ CATEGORY_NAME=ABSOLUTE_PATH;CATEGORY_NAME2=ABSOLUTE_PATH2
 
 Each category name must match exactly what is configured in qBittorrent. Torrents with no category are grouped under the key `__UNCATEGORIZED__`.
 
+Category names and paths may contain spaces and commas — write them literally, and quote only the variable as a whole:
+
+```
+CATEGORY_FOLDERS="Books, Comics & Manga=F:\Downloads\Books, Comics & Manga;TV & Movies=F:\Downloads\TV & Movies"
+```
+
+One category folder may sit inside another — mapping `__UNCATEGORIZED__` to qBittorrent's default save path, which is the parent of the per-category folders, is a common setup. Files under a nested folder are scanned as part of the category that owns that folder, and the overlap is noted in the output.
+
 ## Example Output
 
 ```

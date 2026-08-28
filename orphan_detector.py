@@ -191,6 +191,22 @@ def on_disk(category: str, root: Path) -> Set[Path]:
         files.add(path.relative_to(root))
     return files
 
+def nested_folders(category: str, folder: Path) -> List[Path]:
+    """
+    Return the folders of other categories that live *inside* `folder`.
+
+    A common setup maps __UNCATEGORIZED__ to qBittorrent's default save
+    path, which is the parent of the per-category folders.  Since every
+    category is scanned recursively and matched only against its own
+    torrents, the outer scan would otherwise judge the inner category's
+    files against the wrong torrent set and flag all of them as orphans.
+    """
+    return [
+        other
+        for cat, other in CATEGORY_MAP.items()
+        if cat != category and folder in other.parents
+    ]
+
 def detect_orphans(cat_files: Dict[str, Set[str]]) -> Dict[str, list[Path]]:
     """
     Compare torrent files with real files per category and return
@@ -199,6 +215,14 @@ def detect_orphans(cat_files: Dict[str, Set[str]]) -> Dict[str, list[Path]]:
     orphans: Dict[str, list[Path]] = defaultdict(list)
 
     for category, folder in CATEGORY_MAP.items():
+        nested = nested_folders(category, folder)
+        for inner in nested:
+            # stderr, not stdout: the listing is what gets redirected into a
+            # report and parsed, and this line is not a path.
+            print(f"ℹ️  Folder for category '{category}' contains another "
+                  f"category folder ({inner}); it is scanned under its own "
+                  f"category, not here.", file=sys.stderr)
+
         disk_files = on_disk(category, folder)
         if not disk_files:
             continue
@@ -206,9 +230,14 @@ def detect_orphans(cat_files: Dict[str, Set[str]]) -> Dict[str, list[Path]]:
         torrent_files = cat_files.get(category, set())
 
         for rel_path in disk_files:
+            full_path = folder / rel_path
+            # Owned by a nested category — that scan judges it, not this one.
+            if any(inner in full_path.parents for inner in nested):
+                continue
+
             rel_norm = str(rel_path).replace("\\", "/").lower()
             if rel_norm not in torrent_files:
-                orphans[category].append(folder / rel_path)
+                orphans[category].append(full_path)
 
     return orphans
 

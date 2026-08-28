@@ -3,6 +3,7 @@
 import pytest
 import tempfile
 import os
+import io
 import importlib
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -653,3 +654,93 @@ class TestNestedCategoryFolders:
         cat_map = {"Films": Path("/media/films"), "Shows": Path("/media/shows")}
         with patch.object(orphan_detector, "CATEGORY_MAP", cat_map):
             assert orphan_detector.nested_folders("Films", Path("/media/films")) == []
+
+class TestForceUtf8Output:
+    def test_reconfigures_streams_to_utf8(self):
+        """Streams that support reconfigure() are switched to UTF-8."""
+        import orphan_detector
+
+        fake_out, fake_err = MagicMock(), MagicMock()
+        with patch.object(orphan_detector.sys, "stdout", fake_out), \
+             patch.object(orphan_detector.sys, "stderr", fake_err):
+            orphan_detector.force_utf8_output()
+
+        for stream in (fake_out, fake_err):
+            stream.reconfigure.assert_called_once_with(
+                encoding="utf-8", errors="surrogateescape"
+            )
+
+    def test_tolerates_streams_without_reconfigure(self):
+        """Capture objects lacking reconfigure() must not raise."""
+        import orphan_detector
+
+        bare = io.StringIO()  # no reconfigure() attribute
+        with patch.object(orphan_detector.sys, "stdout", bare), \
+             patch.object(orphan_detector.sys, "stderr", bare):
+            orphan_detector.force_utf8_output()
+
+    def test_non_cp1252_orphan_name_is_printed(self, capsys):
+        """A name with U+2606 must not crash the listing (regression)."""
+        import orphan_detector
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "Akasen \u2606 Gakku.cbz").write_bytes(b"x" * 2048)
+
+            mock_session = MagicMock()
+            mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=True)
+            mock_session.post.return_value = MagicMock()
+
+            mock_get_resp = MagicMock()
+            mock_get_resp.json.return_value = []
+            mock_get_resp.raise_for_status = MagicMock()
+            mock_session.get.return_value = mock_get_resp
+
+            with patch("orphan_detector.requests.Session", return_value=mock_session), \
+                 patch.object(orphan_detector, "QBIT_HOST", "http://localhost:8080"), \
+                 patch.object(orphan_detector, "QBIT_USER", "admin"), \
+                 patch.object(orphan_detector, "QBIT_PASS", "pass"), \
+                 patch.object(orphan_detector, "CATEGORY_MAP", {"TestCat": root}), \
+                 patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                orphan_detector.main()
+
+        assert "\u2606" in capsys.readouterr().out
+
+    def test_non_utf8_filename_round_trips_byte_exactly(self):
+        """
+        A filename that is not valid UTF-8 must be printed as its original
+        bytes.  errors="replace" turns it into "?", which collapses two
+        different files into one identical line and glob-matches a file we
+        never flagged -- on output the user is invited to paste into rm.
+        """
+        import orphan_detector
+
+        raw = b"Le\xe9on.1994.mkv"                 # latin-1, not valid UTF-8
+        name = os.fsdecode(raw)                     # -> lone surrogates
+
+        buf = io.BytesIO()
+        stream = io.TextIOWrapper(buf, encoding="ascii", newline="")
+        with patch.object(orphan_detector.sys, "stdout", stream), \
+             patch.object(orphan_detector.sys, "stderr", stream):
+            orphan_detector.force_utf8_output()
+            print(name, file=stream)
+            stream.flush()
+
+        assert buf.getvalue() == raw + b"\n"
+
+    def test_distinct_non_utf8_names_stay_distinct(self):
+        """Two different unreadable names must not print as the same line."""
+        import orphan_detector
+
+        def rendered(raw):
+            buf = io.BytesIO()
+            stream = io.TextIOWrapper(buf, encoding="ascii", newline="")
+            with patch.object(orphan_detector.sys, "stdout", stream), \
+                 patch.object(orphan_detector.sys, "stderr", stream):
+                orphan_detector.force_utf8_output()
+                print(os.fsdecode(raw), file=stream)
+                stream.flush()
+            return buf.getvalue()
+
+        assert rendered(b"Le\xe9on.mkv") != rendered(b"Le\xf3on.mkv")

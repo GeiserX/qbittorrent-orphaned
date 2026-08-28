@@ -115,10 +115,12 @@ Each category name must match exactly what is configured in qBittorrent. Torrent
 `EXCLUDE_PATTERNS` is comma-separated, so a pattern that itself contains a comma is escaped with a backslash:
 
 ```
-EXCLUDE_PATTERNS=Books\, Comics & Manga,sample
+EXCLUDE_PATTERNS="Books\, Comics & Manga,sample"
 ```
 
-That is two patterns — `Books, Comics & Manga` and `sample`. Without the escape it would be three, and the stray `Books` would silently skip every file whose path contains "book". Values with no `\,` in them are unaffected.
+Quote the whole value. Unquoted, the shell splits on the spaces and runs `Comics` and `Manga,sample` as commands, and Python receives just `Books,` — which is the very mistake this escape exists to prevent.
+
+That is two patterns — `Books, Comics & Manga` and `sample`. Without the escape it would be three, and the stray `Books` would silently skip every path containing "books" — `Audiobooks/Dune.m4b`, for instance — while the stray `Comics & Manga` would skip `Comics & Manga Weekly.mkv`. Values with no `\,` in them are unaffected.
 
 ## Example Output
 

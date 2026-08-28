@@ -329,16 +329,21 @@ class TestDetectOrphansEdgeCases:
             root = Path(tmpdir)
             (root / "Books, Comics & Manga").mkdir()
             (root / "Books, Comics & Manga" / "v01.cbz").touch()
-            (root / "The Book Thief.mkv").touch()
+            (root / "Audiobooks").mkdir()
+            (root / "Audiobooks" / "Dune.m4b").touch()
+            (root / "Comics & Manga Weekly.mkv").touch()
 
             patterns = orphan_detector.parse_list(r"Books\, Comics & Manga")
+            assert patterns == ["Books, Comics & Manga"]
             with patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
                  patch.object(orphan_detector, "EXCLUDE_PATTERNS", patterns):
                 files = orphan_detector.on_disk("TestCat", root)
 
             assert Path("Books, Comics & Manga") / "v01.cbz" not in files
-            # Would have been swallowed by the stray "Books" pattern before.
-            assert Path("The Book Thief.mkv") in files
+            # Each of these is swallowed by one of the three fragments the
+            # unescaped value tears into, and by none of the single pattern.
+            assert Path("Audiobooks") / "Dune.m4b" in files     # stray "Books"
+            assert Path("Comics & Manga Weekly.mkv") in files   # stray "Comics & Manga"
 
 
 class TestHumanSize:

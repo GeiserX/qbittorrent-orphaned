@@ -39,7 +39,8 @@ def parse_list(raw: str) -> List[str]:
     category folders use commas freely, and without an escape a single
     pattern like ``Books, Comics & Manga`` is torn into three, each then
     substring-matched on its own — so an unrelated pattern ``Books``
-    quietly drops every path containing "book".
+    quietly drops every path containing "books" -- "Audiobooks/Dune.m4b",
+    for instance.
 
     Quoting can't serve here: getenv() strips quotes from the ends of the
     whole variable, which would eat the opening quote of a quoted first

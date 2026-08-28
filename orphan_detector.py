@@ -27,6 +27,29 @@ from typing import Dict, List, Set
 # 1. Configuration helpers
 ##############################################################################
 
+def force_utf8_output() -> None:
+    """
+    Print UTF-8 regardless of the console's default encoding.
+
+    Torrent names routinely contain characters outside the Windows ANSI
+    code pages (cp1252 has no U+2606 WHITE STAR, for example), and the
+    status glyphs below are non-ASCII too.  Without this, printing such a
+    name raises UnicodeEncodeError and kills the run mid-listing.
+
+    errors="surrogateescape", not "replace": we print paths the user is
+    invited to delete, so every byte has to survive the round-trip.  A
+    filename that is not valid UTF-8 reaches us as surrogates from
+    os.fsdecode, and "replace" would turn each one into "?" -- which
+    silently collapses two different files into one identical line and,
+    because "?" is a shell glob, makes the printed path match a file we
+    never flagged.  "surrogateescape" writes the original bytes back out.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        # pytest's capture fixtures replace these with objects that have no
+        # reconfigure(); nothing to do there, they already accept UTF-8.
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="surrogateescape")
+
 def getenv(name: str, default: str) -> str:
     """Tiny getenv wrapper that also trims quotes added by some shells."""
     return os.getenv(name, default).strip(' "\'')
@@ -69,6 +92,10 @@ def parse_category_map(raw: str) -> Dict[str, Path]:
             continue
         mapping[cat.strip()] = Path(folder.strip())
     return mapping
+
+# Before any module-scope print(): the malformed-entry warning below is
+# non-ASCII and would otherwise crash on a legacy stdout before main() runs.
+force_utf8_output()
 
 CATEGORY_MAP = parse_category_map(getenv(
     "CATEGORY_FOLDERS",
@@ -180,6 +207,22 @@ def on_disk(category: str, root: Path) -> Set[Path]:
         files.add(path.relative_to(root))
     return files
 
+def nested_folders(category: str, folder: Path) -> List[Path]:
+    """
+    Return the folders of other categories that live *inside* `folder`.
+
+    A common setup maps __UNCATEGORIZED__ to qBittorrent's default save
+    path, which is the parent of the per-category folders.  Since every
+    category is scanned recursively and matched only against its own
+    torrents, the outer scan would otherwise judge the inner category's
+    files against the wrong torrent set and flag all of them as orphans.
+    """
+    return [
+        other
+        for cat, other in CATEGORY_MAP.items()
+        if cat != category and folder in other.parents
+    ]
+
 def detect_orphans(cat_files: Dict[str, Set[str]]) -> Dict[str, list[Path]]:
     """
     Compare torrent files with real files per category and return
@@ -188,6 +231,14 @@ def detect_orphans(cat_files: Dict[str, Set[str]]) -> Dict[str, list[Path]]:
     orphans: Dict[str, list[Path]] = defaultdict(list)
 
     for category, folder in CATEGORY_MAP.items():
+        nested = nested_folders(category, folder)
+        for inner in nested:
+            # stderr, not stdout: the listing is what gets redirected into a
+            # report and parsed, and this line is not a path.
+            print(f"ℹ️  Folder for category '{category}' contains another "
+                  f"category folder ({inner}); it is scanned under its own "
+                  f"category, not here.", file=sys.stderr)
+
         disk_files = on_disk(category, folder)
         if not disk_files:
             continue
@@ -195,9 +246,14 @@ def detect_orphans(cat_files: Dict[str, Set[str]]) -> Dict[str, list[Path]]:
         torrent_files = cat_files.get(category, set())
 
         for rel_path in disk_files:
+            full_path = folder / rel_path
+            # Owned by a nested category — that scan judges it, not this one.
+            if any(inner in full_path.parents for inner in nested):
+                continue
+
             rel_norm = str(rel_path).replace("\\", "/").lower()
             if rel_norm not in torrent_files:
-                orphans[category].append(folder / rel_path)
+                orphans[category].append(full_path)
 
     return orphans
 
@@ -212,6 +268,7 @@ def human_size(num: int) -> str:
         num /= 1024
 
 def main() -> None:
+    force_utf8_output()  # re-apply: streams may have been swapped since import
     qbit = Qbit(QBIT_HOST, QBIT_USER, QBIT_PASS)
     cat_files = fetch_torrent_files(qbit)
     orphans = detect_orphans(cat_files)

@@ -3,6 +3,7 @@
 import pytest
 import tempfile
 import os
+import io
 import importlib
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -609,3 +610,184 @@ class TestMain:
         captured = capsys.readouterr()
         assert "vanishing.mkv" in captured.out
         assert "missing?" in captured.out
+
+
+class TestNestedCategoryFolders:
+    """A category folder that contains another category's folder."""
+
+    def _tree(self, tmpdir):
+        """
+        root/                      -> __UNCATEGORIZED__
+            loose.mkv              (genuine orphan)
+            Books, Comics & Manga/ -> its own category
+                Series X/v01.cbz   (tracked by a torrent in that category)
+        """
+        root = Path(tmpdir)
+        inner = root / "Books, Comics & Manga"
+        (inner / "Series X").mkdir(parents=True)
+        (inner / "Series X" / "v01.cbz").touch()
+        (root / "loose.mkv").touch()
+        return root, inner
+
+    def test_nested_files_not_orphaned_by_outer_category(self):
+        import orphan_detector
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root, inner = self._tree(tmpdir)
+            cat_map = {"__UNCATEGORIZED__": root, "Books, Comics & Manga": inner}
+            torrent_files = {"Books, Comics & Manga": {"series x/v01.cbz"}}
+
+            with patch.object(orphan_detector, "CATEGORY_MAP", cat_map), \
+                 patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                orphans = orphan_detector.detect_orphans(torrent_files)
+
+            # The outer scan sees only its own loose file.
+            assert [p.name for p in orphans["__UNCATEGORIZED__"]] == ["loose.mkv"]
+            # And the nested file is not orphaned anywhere.
+            assert "Books, Comics & Manga" not in orphans
+
+    def test_nested_orphan_still_found_in_its_own_category(self):
+        import orphan_detector
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root, inner = self._tree(tmpdir)
+            cat_map = {"__UNCATEGORIZED__": root, "Books, Comics & Manga": inner}
+
+            with patch.object(orphan_detector, "CATEGORY_MAP", cat_map), \
+                 patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                orphans = orphan_detector.detect_orphans({})
+
+            # Untracked now, so it is a real orphan — reported once, under
+            # the category that owns the folder.
+            assert [p.name for p in orphans["Books, Comics & Manga"]] == ["v01.cbz"]
+            assert [p.name for p in orphans["__UNCATEGORIZED__"]] == ["loose.mkv"]
+
+    def test_overlap_is_reported(self, capsys):
+        import orphan_detector
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root, inner = self._tree(tmpdir)
+            cat_map = {"__UNCATEGORIZED__": root, "Books, Comics & Manga": inner}
+
+            with patch.object(orphan_detector, "CATEGORY_MAP", cat_map), \
+                 patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                orphan_detector.detect_orphans({})
+
+            captured = capsys.readouterr()
+            # informational, so it must not land in a redirected report
+            assert "contains another category folder" in captured.err
+            assert "__UNCATEGORIZED__" in captured.err
+            assert "contains another category folder" not in captured.out
+
+    def test_identical_folders_are_not_nested(self):
+        """Two categories deliberately pointed at the same folder still work."""
+        import orphan_detector
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "shared.mkv").touch()
+            cat_map = {"A": root, "B": root}
+
+            with patch.object(orphan_detector, "CATEGORY_MAP", cat_map), \
+                 patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                assert orphan_detector.nested_folders("A", root) == []
+                orphans = orphan_detector.detect_orphans({"A": {"shared.mkv"}})
+
+            assert "A" not in orphans
+            assert [p.name for p in orphans["B"]] == ["shared.mkv"]
+
+    def test_no_nesting_returns_empty(self):
+        import orphan_detector
+        cat_map = {"Films": Path("/media/films"), "Shows": Path("/media/shows")}
+        with patch.object(orphan_detector, "CATEGORY_MAP", cat_map):
+            assert orphan_detector.nested_folders("Films", Path("/media/films")) == []
+
+class TestForceUtf8Output:
+    def test_reconfigures_streams_to_utf8(self):
+        """Streams that support reconfigure() are switched to UTF-8."""
+        import orphan_detector
+
+        fake_out, fake_err = MagicMock(), MagicMock()
+        with patch.object(orphan_detector.sys, "stdout", fake_out), \
+             patch.object(orphan_detector.sys, "stderr", fake_err):
+            orphan_detector.force_utf8_output()
+
+        for stream in (fake_out, fake_err):
+            stream.reconfigure.assert_called_once_with(
+                encoding="utf-8", errors="surrogateescape"
+            )
+
+    def test_tolerates_streams_without_reconfigure(self):
+        """Capture objects lacking reconfigure() must not raise."""
+        import orphan_detector
+
+        bare = io.StringIO()  # no reconfigure() attribute
+        with patch.object(orphan_detector.sys, "stdout", bare), \
+             patch.object(orphan_detector.sys, "stderr", bare):
+            orphan_detector.force_utf8_output()
+
+    def test_non_cp1252_orphan_name_is_printed(self, capsys):
+        """A name with U+2606 must not crash the listing (regression)."""
+        import orphan_detector
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "Akasen \u2606 Gakku.cbz").write_bytes(b"x" * 2048)
+
+            mock_session = MagicMock()
+            mock_session.cookies = _gen_cookies_with_sid(qbit_ver_gte_5_2=True)
+            mock_session.post.return_value = MagicMock()
+
+            mock_get_resp = MagicMock()
+            mock_get_resp.json.return_value = []
+            mock_get_resp.raise_for_status = MagicMock()
+            mock_session.get.return_value = mock_get_resp
+
+            with patch("orphan_detector.requests.Session", return_value=mock_session), \
+                 patch.object(orphan_detector, "QBIT_HOST", "http://localhost:8080"), \
+                 patch.object(orphan_detector, "QBIT_USER", "admin"), \
+                 patch.object(orphan_detector, "QBIT_PASS", "pass"), \
+                 patch.object(orphan_detector, "CATEGORY_MAP", {"TestCat": root}), \
+                 patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+                orphan_detector.main()
+
+        assert "\u2606" in capsys.readouterr().out
+
+    def test_non_utf8_filename_round_trips_byte_exactly(self):
+        """
+        A filename that is not valid UTF-8 must be printed as its original
+        bytes.  errors="replace" turns it into "?", which collapses two
+        different files into one identical line and glob-matches a file we
+        never flagged -- on output the user is invited to paste into rm.
+        """
+        import orphan_detector
+
+        raw = b"Le\xe9on.1994.mkv"                 # latin-1, not valid UTF-8
+        name = os.fsdecode(raw)                     # -> lone surrogates
+
+        buf = io.BytesIO()
+        stream = io.TextIOWrapper(buf, encoding="ascii", newline="")
+        with patch.object(orphan_detector.sys, "stdout", stream), \
+             patch.object(orphan_detector.sys, "stderr", stream):
+            orphan_detector.force_utf8_output()
+            print(name, file=stream)
+            stream.flush()
+
+        assert buf.getvalue() == raw + b"\n"
+
+    def test_distinct_non_utf8_names_stay_distinct(self):
+        """Two different unreadable names must not print as the same line."""
+        import orphan_detector
+
+        def rendered(raw):
+            buf = io.BytesIO()
+            stream = io.TextIOWrapper(buf, encoding="ascii", newline="")
+            with patch.object(orphan_detector.sys, "stdout", stream), \
+                 patch.object(orphan_detector.sys, "stderr", stream):
+                orphan_detector.force_utf8_output()
+                print(os.fsdecode(raw), file=stream)
+                stream.flush()
+            return buf.getvalue()
+
+        assert rendered(b"Le\xe9on.mkv") != rendered(b"Le\xf3on.mkv")

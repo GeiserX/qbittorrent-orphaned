@@ -190,9 +190,11 @@ def detect_orphans(cat_files: Dict[str, Set[str]]) -> Dict[str, list[Path]]:
     for category, folder in CATEGORY_MAP.items():
         nested = nested_folders(category, folder)
         for inner in nested:
+            # stderr, not stdout: the listing is what gets redirected into a
+            # report and parsed, and this line is not a path.
             print(f"ℹ️  Folder for category '{category}' contains another "
                   f"category folder ({inner}); it is scanned under its own "
-                  f"category, not here.")
+                  f"category, not here.", file=sys.stderr)
 
         disk_files = on_disk(category, folder)
         if not disk_files:

@@ -625,9 +625,11 @@ class TestNestedCategoryFolders:
                  patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
                 orphan_detector.detect_orphans({})
 
-            out = capsys.readouterr().out
-            assert "__UNCATEGORIZED__" in out
-            assert "contains another category folder" in out
+            captured = capsys.readouterr()
+            # informational, so it must not land in a redirected report
+            assert "contains another category folder" in captured.err
+            assert "__UNCATEGORIZED__" in captured.err
+            assert "contains another category folder" not in captured.out
 
     def test_identical_folders_are_not_nested(self):
         """Two categories deliberately pointed at the same folder still work."""

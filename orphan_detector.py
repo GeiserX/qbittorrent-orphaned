@@ -8,7 +8,8 @@ Environment Variables:
     QBIT_USER           qBittorrent username (default: admin)
     QBIT_PASS           qBittorrent password (default: password)
     CATEGORY_FOLDERS    Category to folder mapping (e.g., Films=/mnt/films;Shows=/mnt/shows)
-    EXCLUDE_PATTERNS    Comma-separated patterns to exclude (e.g., " - 720p.mkv,sample")
+    EXCLUDE_PATTERNS    Comma-separated patterns to exclude (e.g., " - 720p.mkv,sample").
+                        A comma within a pattern is escaped with a backslash
     IGNORE_SUFFIXES     Additional file suffixes to ignore (comma-separated)
 """
 
@@ -54,8 +55,23 @@ def getenv(name: str, default: str) -> str:
     return os.getenv(name, default).strip(' "\'')
 
 def parse_list(raw: str) -> List[str]:
-    """Parse comma-separated list from env var."""
-    return [p.strip() for p in raw.split(",") if p.strip()]
+    r"""
+    Parse comma-separated list from env var.
+
+    A comma *inside* an item is written ``\,``.  Release names and
+    category folders use commas freely, and without an escape a single
+    pattern like ``Books, Comics & Manga`` is torn into three, each then
+    substring-matched on its own — so an unrelated pattern ``Books``
+    quietly drops every path containing "books" -- "Audiobooks/Dune.m4b",
+    for instance.
+
+    Quoting can't serve here: getenv() strips quotes from the ends of the
+    whole variable, which would eat the opening quote of a quoted first
+    item.  A literal backslash immediately before a separating comma is
+    therefore not expressible; nothing else changes meaning.
+    """
+    items = re.split(r"(?<!\\),", raw)
+    return [p.strip().replace("\\,", ",") for p in items if p.strip()]
 
 QBIT_HOST = getenv("QBIT_HOST", "http://qbittorrent:8080").rstrip("/")
 QBIT_USER = getenv("QBIT_USER", "admin")

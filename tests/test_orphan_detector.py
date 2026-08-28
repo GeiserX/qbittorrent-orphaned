@@ -119,6 +119,10 @@ class TestModuleGlobals:
         mod = _import_fresh({"EXCLUDE_PATTERNS": "720p,sample"})
         assert mod.EXCLUDE_PATTERNS == ["720p", "sample"]
 
+    def test_exclude_patterns_with_escaped_comma(self, reimported):
+        mod = _import_fresh({"EXCLUDE_PATTERNS": r"Books\, Comics & Manga,sample"})
+        assert mod.EXCLUDE_PATTERNS == ["Books, Comics & Manga", "sample"]
+
 
 class TestParseList:
     def test_comma_separated(self):
@@ -132,6 +136,26 @@ class TestParseList:
 
     def test_trailing_comma(self):
         assert parse_list("a,b,") == ["a", "b"]
+
+    def test_escaped_comma_kept_in_item(self):
+        assert parse_list(r"Books\, Comics & Manga,TV & Movies") == [
+            "Books, Comics & Manga",
+            "TV & Movies",
+        ]
+
+    def test_escaped_comma_alone(self):
+        assert parse_list(r"a\,b") == ["a,b"]
+
+    def test_escape_does_not_change_unescaped_values(self):
+        """Every pre-existing value parses exactly as before."""
+        assert parse_list("720p,sample") == ["720p", "sample"]
+        assert parse_list("a, b, c") == ["a", "b", "c"]
+
+    def test_windows_path_pattern_survives(self):
+        assert parse_list(r"Season 1\Episode,sample") == [
+            r"Season 1\Episode",
+            "sample",
+        ]
 
 
 class TestParseCategoryMap:
@@ -298,6 +322,29 @@ class TestDetectOrphansEdgeCases:
 
             assert Path("movie.mkv") in files
             assert Path("movie - 720p.mkv") not in files
+
+    def test_comma_bearing_pattern_excludes_only_its_own_folder(self):
+        """An escaped pattern stays one pattern instead of matching loosely."""
+        import orphan_detector
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "Books, Comics & Manga").mkdir()
+            (root / "Books, Comics & Manga" / "v01.cbz").touch()
+            (root / "Audiobooks").mkdir()
+            (root / "Audiobooks" / "Dune.m4b").touch()
+            (root / "Comics & Manga Weekly.mkv").touch()
+
+            patterns = orphan_detector.parse_list(r"Books\, Comics & Manga")
+            assert patterns == ["Books, Comics & Manga"]
+            with patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+                 patch.object(orphan_detector, "EXCLUDE_PATTERNS", patterns):
+                files = orphan_detector.on_disk("TestCat", root)
+
+            assert Path("Books, Comics & Manga") / "v01.cbz" not in files
+            # Each of these is swallowed by one of the three fragments the
+            # unescaped value tears into, and by none of the single pattern.
+            assert Path("Audiobooks") / "Dune.m4b" in files     # stray "Books"
+            assert Path("Comics & Manga Weekly.mkv") in files   # stray "Comics & Manga"
 
 
 class TestHumanSize:

@@ -655,6 +655,23 @@ class TestNestedCategoryFolders:
         with patch.object(orphan_detector, "CATEGORY_MAP", cat_map):
             assert orphan_detector.nested_folders("Films", Path("/media/films")) == []
 
+def _fsdecode(raw: bytes) -> str:
+    """
+    Decode undecodable filesystem bytes to lone surrogates, on any platform.
+
+    os.fsdecode() would do this on Linux, but its error handler differs by
+    platform: surrogateescape there, surrogatepass on Windows.  surrogatepass
+    only passes through surrogates already encoded in the input, so a plain
+    undecodable byte like 0xe9 raises instead of becoming a surrogate, and
+    the tests below never reach their assertion.
+
+    Spelling the handler out keeps them asserting exactly what os.fsdecode()
+    gave them on Linux, while letting them run where the console encoding
+    they guard against actually lives.
+    """
+    return raw.decode("utf-8", "surrogateescape")
+
+
 class TestForceUtf8Output:
     def test_reconfigures_streams_to_utf8(self):
         """Streams that support reconfigure() are switched to UTF-8."""
@@ -717,7 +734,7 @@ class TestForceUtf8Output:
         import orphan_detector
 
         raw = b"Le\xe9on.1994.mkv"                 # latin-1, not valid UTF-8
-        name = os.fsdecode(raw)                     # -> lone surrogates
+        name = _fsdecode(raw)                       # -> lone surrogates
 
         buf = io.BytesIO()
         stream = io.TextIOWrapper(buf, encoding="ascii", newline="")
@@ -739,7 +756,7 @@ class TestForceUtf8Output:
             with patch.object(orphan_detector.sys, "stdout", stream), \
                  patch.object(orphan_detector.sys, "stderr", stream):
                 orphan_detector.force_utf8_output()
-                print(os.fsdecode(raw), file=stream)
+                print(_fsdecode(raw), file=stream)
                 stream.flush()
             return buf.getvalue()
 

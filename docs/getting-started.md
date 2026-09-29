@@ -1,4 +1,4 @@
-# Installation
+# Getting started
 
 <p>
   <img src="https://img.shields.io/badge/python-3.8%2B-3776AB.svg?logo=python&logoColor=white" alt="Python 3.8+"/>

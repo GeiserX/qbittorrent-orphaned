@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/GeiserX/qbittorrent-orphaned/main/docs/images/banner.svg" alt="qbittorrent-orphaned banner" width="900"/>
+  <img src="https://raw.githubusercontent.com/GeiserX/qbittorrent-orphaned/main/docs/images/banner.svg" alt="qbittorrent-orphaned" width="900"/>
 </p>
 
 <p align="center">
   <a href="https://pypi.org/project/qbittorrent-orphaned/"><img src="https://img.shields.io/pypi/v/qbittorrent-orphaned.svg" alt="PyPI version"/></a>
   <a href="https://github.com/GeiserX/qbittorrent-orphaned/actions/workflows/tests.yml"><img src="https://img.shields.io/github/actions/workflow/status/GeiserX/qbittorrent-orphaned/tests.yml?label=tests" alt="Tests"/></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="License: GPL-3.0"/></a>
+  <a href="https://github.com/GeiserX/qbittorrent-orphaned/blob/main/LICENSE"><img src="https://img.shields.io/github/license/GeiserX/qbittorrent-orphaned" alt="License"/></a>
   <a href="https://codecov.io/gh/GeiserX/qbittorrent-orphaned"><img src="https://img.shields.io/codecov/c/github/GeiserX/qbittorrent-orphaned.svg" alt="Coverage"/></a>
 </p>
 
@@ -29,12 +29,14 @@ QBIT_HOST=http://localhost:8080 QBIT_USER=admin QBIT_PASS=yourpassword \
   CATEGORY_FOLDERS="Films=/mnt/media/films;Shows=/mnt/media/shows" qbittorrent-orphaned
 ```
 
+Docker and running the script directly are in [Getting started](https://github.com/GeiserX/qbittorrent-orphaned/blob/main/docs/getting-started.md).
+
 ## Documentation
 
-- [Installation](https://github.com/GeiserX/qbittorrent-orphaned/blob/main/docs/installation.md): PyPI, running the script directly, Docker
+- [Getting started](https://github.com/GeiserX/qbittorrent-orphaned/blob/main/docs/getting-started.md): PyPI, running the script directly, Docker
 - [Configuration](https://github.com/GeiserX/qbittorrent-orphaned/blob/main/docs/configuration.md): environment variables, the `CATEGORY_FOLDERS` format, patterns that contain commas
 - [How it works](https://github.com/GeiserX/qbittorrent-orphaned/blob/main/docs/how-it-works.md): what counts as an orphan, the steps, example output, feature details
 
 ## License
 
-[GPL-3.0](https://github.com/GeiserX/qbittorrent-orphaned/blob/main/LICENSE)
+[GPL-3.0-or-later](https://github.com/GeiserX/qbittorrent-orphaned/blob/main/LICENSE)

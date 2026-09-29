@@ -7,7 +7,7 @@ name = "qbittorrent-orphaned"
 version = "1.1.2"
 description = "Detect files on disk not tracked by any qBittorrent torrent"
 readme = "README.md"
-license = "GPL-3.0-only"
+license = "GPL-3.0-or-later"
 requires-python = ">=3.8"
 authors = [
     { name = "GeiserX", email = "9169332+GeiserX@users.noreply.github.com" },

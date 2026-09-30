@@ -10,7 +10,7 @@ When you remove a torrent from qBittorrent but keep the data on disk, or when ex
 2. **Fetch torrents** -- it retrieves the full torrent list from `/api/v2/torrents/info`, then for each torrent calls `/api/v2/torrents/files` to get every file path the torrent manages.
 3. **Index by category** -- all torrent file paths are normalized (forward slashes, lowercase) and grouped into a lookup set per category.
 4. **Walk the filesystem** -- for each configured category folder, the script recursively enumerates files, skipping ignored suffixes, macOS resource forks, and exclude-pattern matches.
-5. **Cross-reference** -- every disk file is checked against the corresponding category set. Files not present in any torrent are reported as orphans with their absolute path and human-readable size.
+5. **Cross-reference** -- every disk file is checked against the corresponding category set, then against every torrent's full path in qBittorrent, whatever its category. Files not present in any torrent are reported as orphans with their absolute path and human-readable size.
 
 ## Example Output
 

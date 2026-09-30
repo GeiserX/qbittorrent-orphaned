@@ -496,7 +496,7 @@ class TestFetchTorrentFiles:
         mock_session.post.return_value = mock_login_resp
 
         torrents = [
-            {"hash": "aaa", "category": "Films"},
+            {"hash": "aaa", "category": "Films", "save_path": "/data/Films"},
             {"hash": "bbb", "category": "Shows"},
             {"hash": "ccc", "category": ""},  # empty category -> __UNCATEGORIZED__
         ]
@@ -520,11 +520,14 @@ class TestFetchTorrentFiles:
 
         with patch("orphan_detector.requests.Session", return_value=mock_session):
             qbit = orphan_detector.Qbit("http://localhost:8080", "admin", "pass")
-            result = orphan_detector.fetch_torrent_files(qbit)
+            result, seeded = orphan_detector.fetch_torrent_files(qbit)
 
         assert "film1/film.mkv" in result["Films"]
         assert "show1/episode.mkv" in result["Shows"]
         assert "random/file.mkv" in result["__UNCATEGORIZED__"]
+        # every torrent, keyed by the tails of qBittorrent's full path
+        assert "films/film1/film.mkv" in seeded
+        assert "show1/episode.mkv" in seeded
 
 
 class TestMain:
@@ -701,6 +704,75 @@ class TestNestedCategoryFolders:
         cat_map = {"Films": Path("/media/films"), "Shows": Path("/media/shows")}
         with patch.object(orphan_detector, "CATEGORY_MAP", cat_map):
             assert orphan_detector.nested_folders("Films", Path("/media/films")) == []
+
+class TestUnmappedCategory:
+    """#26: a category in qBittorrent but missing from CATEGORY_FOLDERS."""
+
+    def _tree(self, tmpdir):
+        """
+        dl/                    -> __UNCATEGORIZED__
+            junk.mkv           (genuine orphan)
+            Films/movie.mkv    (Films, mapped)
+            Shows/Series/ep1.mkv  (Shows, seeding, NOT mapped)
+        """
+        root = Path(tmpdir)
+        (root / "Films").mkdir()
+        (root / "Films" / "movie.mkv").touch()
+        (root / "Shows" / "Series").mkdir(parents=True)
+        (root / "Shows" / "Series" / "ep1.mkv").touch()
+        (root / "junk.mkv").touch()
+        return root
+
+    def _run(self, root, seeded):
+        import orphan_detector
+        cat_map = {"__UNCATEGORIZED__": root, "Films": root / "Films"}
+        cat_files = {"Films": {"movie.mkv"}, "Shows": {"series/ep1.mkv"}}
+        with patch.object(orphan_detector, "CATEGORY_MAP", cat_map), \
+             patch.object(orphan_detector, "IGNORE_SUFFIXES", set()), \
+             patch.object(orphan_detector, "EXCLUDE_PATTERNS", []):
+            return orphan_detector.detect_orphans(cat_files, seeded)
+
+    def test_seeding_file_of_unmapped_category_is_not_an_orphan(self):
+        import orphan_detector
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = self._tree(tmpdir)
+            # qBittorrent's own view: a different mount point than ours.
+            seeded = orphan_detector.seeded_tails(
+                "/downloads/Shows", "Series/ep1.mkv")
+            orphans = self._run(root, seeded)
+
+        assert [p.name for p in orphans["__UNCATEGORIZED__"]] == ["junk.mkv"]
+        assert "Films" not in orphans
+
+    def test_same_name_elsewhere_is_still_an_orphan(self):
+        """Only the tail that includes every folder below the scan root counts."""
+        import orphan_detector
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = self._tree(tmpdir)
+            (root / "old" / "Series").mkdir(parents=True)
+            (root / "old" / "Series" / "ep1.mkv").touch()
+            seeded = orphan_detector.seeded_tails(
+                "/downloads/Shows", "Series/ep1.mkv")
+            orphans = self._run(root, seeded)
+
+        assert sorted(str(p.relative_to(root)).replace("\\", "/")
+                      for p in orphans["__UNCATEGORIZED__"]) == [
+            "junk.mkv", "old/Series/ep1.mkv"]
+
+    def test_windows_save_path(self):
+        import orphan_detector
+        seeded = orphan_detector.seeded_tails(
+            "D:\\Downloads\\Shows", "Series\\Ep1.mkv")
+        assert "shows/series/ep1.mkv" in seeded
+        assert "downloads/shows/series/ep1.mkv" in seeded
+
+    def test_unmapped_category_is_reported(self, capsys):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._run(self._tree(tmpdir), set())
+        captured = capsys.readouterr()
+        assert "'Shows' is not in CATEGORY_FOLDERS" in captured.err
+        assert "CATEGORY_FOLDERS" not in captured.out
+
 
 def _fsdecode(raw: bytes) -> str:
     """

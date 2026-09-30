@@ -27,6 +27,8 @@ CATEGORY_FOLDERS="Books, Comics & Manga=F:\Downloads\Books, Comics & Manga;TV & 
 
 One category folder may sit inside another — mapping `__UNCATEGORIZED__` to qBittorrent's default save path, which is the parent of the per-category folders, is a common setup. Files under a nested folder are scanned as part of the category that owns that folder, and the overlap is noted on stderr, so it stays out of a redirected report.
 
+A category that is in qBittorrent but not in `CATEGORY_FOLDERS` is not scanned, and stderr says so. Its files are still never listed as orphans when a mapped folder contains them: a file that any torrent is seeding is not an orphan, whatever its category.
+
 ## Patterns Containing Commas
 
 `EXCLUDE_PATTERNS` is comma-separated, so a pattern that itself contains a comma is escaped with a backslash:

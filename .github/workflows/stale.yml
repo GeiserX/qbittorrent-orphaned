@@ -19,6 +19,6 @@ jobs:
           days-before-issue-stale: 14
           days-before-issue-close: 14
           stale-issue-label: 'stale'
-          exempt-issue-labels: 'pinned'
+          exempt-issue-labels: 'pinned,bug'
           days-before-pr-stale: -1
           days-before-pr-close: -1

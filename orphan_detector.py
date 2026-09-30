@@ -21,7 +21,7 @@ import json
 import requests
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 
 ##############################################################################
 # 1. Configuration helpers
@@ -154,21 +154,37 @@ class Qbit:
         r.raise_for_status()
         return r.json()
 
-def fetch_torrent_files(qbit: Qbit) -> Dict[str, Set[str]]:
+def seeded_tails(save_path: str, name: str) -> Set[str]:
     """
-    Return {category → set(relative_path.lower())}.
+    Return every trailing piece of qBittorrent's full path for one file:
+    "/dl/Shows/Series/ep1.mkv" gives "shows/series/ep1.mkv",
+    "series/ep1.mkv" and "ep1.mkv".  qBittorrent's paths may be on another
+    mount than ours, so a disk file is matched by its path below the folder
+    being scanned, which must equal one of these tails.
+    """
+    full = f"{save_path}/{name}".replace("\\", "/").lower()
+    parts = [p for p in full.split("/") if p]
+    return {"/".join(parts[i:]) for i in range(len(parts))}
+
+def fetch_torrent_files(qbit: Qbit) -> Tuple[Dict[str, Set[str]], Set[str]]:
+    """
+    Return ({category → set(relative_path.lower())}, seeded).
     We store relative paths as qBittorrent reports them (inside the torrent),
-    in lowercase so comparison is case-insensitive on Windows.
+    in lowercase so comparison is case-insensitive on Windows.  `seeded`
+    holds the seeded_tails() of every file of every torrent, whatever its
+    category.
     """
     cat_files: Dict[str, Set[str]] = defaultdict(set)
+    seeded: Set[str] = set()
 
     for t in qbit.torrents():
         category = t.get("category") or "__UNCATEGORIZED__"
         for f in qbit.files_for(t["hash"]):
             name = f["name"].replace("\\", "/").lower()
             cat_files[category].add(name)
+            seeded |= seeded_tails(t.get("save_path", ""), name)
 
-    return cat_files
+    return cat_files, seeded
 
 ##############################################################################
 # 3. Walk disk and detect orphaned files
@@ -223,12 +239,21 @@ def nested_folders(category: str, folder: Path) -> List[Path]:
         if cat != category and folder in other.parents
     ]
 
-def detect_orphans(cat_files: Dict[str, Set[str]]) -> Dict[str, list[Path]]:
+def detect_orphans(cat_files: Dict[str, Set[str]],
+                   seeded: Set[str] = frozenset()) -> Dict[str, list[Path]]:
     """
     Compare torrent files with real files per category and return
     {category → [orphan_path, …]} (full absolute paths).
+
+    A file some torrent is seeding is never an orphan, whatever category
+    the torrent is in: a category missing from CATEGORY_FOLDERS still has
+    its files inside a mapped folder when that folder contains its own.
     """
     orphans: Dict[str, list[Path]] = defaultdict(list)
+
+    for category in sorted(set(cat_files) - set(CATEGORY_MAP)):
+        print(f"ℹ️  Category '{category}' is not in CATEGORY_FOLDERS, so its "
+              f"folder is not checked for orphans.", file=sys.stderr)
 
     for category, folder in CATEGORY_MAP.items():
         nested = nested_folders(category, folder)
@@ -252,7 +277,7 @@ def detect_orphans(cat_files: Dict[str, Set[str]]) -> Dict[str, list[Path]]:
                 continue
 
             rel_norm = str(rel_path).replace("\\", "/").lower()
-            if rel_norm not in torrent_files:
+            if rel_norm not in torrent_files and rel_norm not in seeded:
                 orphans[category].append(full_path)
 
     return orphans
@@ -270,8 +295,8 @@ def human_size(num: int) -> str:
 def main() -> None:
     force_utf8_output()  # re-apply: streams may have been swapped since import
     qbit = Qbit(QBIT_HOST, QBIT_USER, QBIT_PASS)
-    cat_files = fetch_torrent_files(qbit)
-    orphans = detect_orphans(cat_files)
+    cat_files, seeded = fetch_torrent_files(qbit)
+    orphans = detect_orphans(cat_files, seeded)
 
     if not orphans:
         print("✅  No orphaned files found.")

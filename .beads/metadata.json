@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "qbo",
+  "project_id": "a0e200d6-88e9-4653-bdea-58017c845c1e"
+}
